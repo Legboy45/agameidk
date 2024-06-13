@@ -398,12 +398,6 @@ function tilemapguyanimation () {
     characterAnimations.rule(Predicate.MovingLeft)
     )
 }
-scene.onOverlapTile(SpriteKind.TileMapPlayer, assets.tile`myTile`, function (sprite, location) {
-    if (controller.A.isPressed()) {
-        tiles.setTileAt(location, assets.tile`myTile0`)
-        GeneratorsOn += 1
-    }
-})
 controller.B.onEvent(ControllerButtonEvent.Pressed, function () {
     if (!(UsingMonitor)) {
         if (!(Reloading) && (!(Ammo == MaxAmmo) && Magazines != 0)) {
@@ -795,6 +789,12 @@ controller.A.onEvent(ControllerButtonEvent.Pressed, function () {
                 }
             }
         }
+    } else {
+        if (TileMapGuy.tileKindAt(TileDirection.Center, assets.tile`myTile`)) {
+            if (!(Repairing)) {
+                Repairing = true
+            }
+        }
     }
 })
 function TileMapcreate () {
@@ -822,8 +822,7 @@ function TileMapcreate () {
 }
 function createHUD () {
     RepairTime = statusbars.create(25, 4, StatusBarKind.RepairTime)
-    RepairTime.attachToSprite(TileMapGuy, 0, 0)
-    RepairTime.setFlag(SpriteFlag.Invisible, true)
+    RepairTime.setFlag(SpriteFlag.Invisible, false)
     RepairTime.z = 5
     RepairTime.setColor(5, 4)
     RepairTime.setBarBorder(1, 15)
@@ -1010,7 +1009,7 @@ controller.down.onEvent(ControllerButtonEvent.Pressed, function () {
 })
 scene.onOverlapTile(SpriteKind.TileMapPlayer, assets.tile`myTile2`, function (sprite, location) {
     if (controller.A.isPressed()) {
-        tiles.setTileAt(location, assets.tile`myTile2`)
+        tiles.setTileAt(location, sprites.castle.tileDarkGrass3)
         Magazines += 1
     }
 })
@@ -2631,7 +2630,7 @@ function PlrCreate () {
 function Variables () {
     MonitorAnimationPlaying = false
     Timer = 180
-    EnergyVar = 0
+    EnergyVar = 5
     GeneratorsOn = 0
     Timeuntilspawning = 8
     enemyspawnin = 3500
@@ -2651,6 +2650,7 @@ let myEnemy: Sprite = null
 let ReloadTimeMax = 0
 let enemyspawnin = 0
 let Timeuntilspawning = 0
+let GeneratorsOn = 0
 let EnergyVar = 0
 let Timer = 0
 let Camerafornonmonitor: Sprite = null
@@ -2665,6 +2665,7 @@ let BulletHUD: Sprite = null
 let MonitorHUD: Sprite = null
 let ReloadTime: StatusBarSprite = null
 let RepairTime: StatusBarSprite = null
+let Repairing = false
 let PistolHUD: Sprite = null
 let PistolAim: Sprite = null
 let Dummy: Sprite = null
@@ -2674,7 +2675,6 @@ let MaxAmmo = 0
 let Ammo = 0
 let Reloading = false
 let UsingMonitor = false
-let GeneratorsOn = 0
 let TileMapGuy: Sprite = null
 Variables()
 PlrCreate()
@@ -2708,6 +2708,15 @@ game.onUpdate(function () {
     }
 })
 game.onUpdate(function () {
+    for (let value of sprites.allOfKind(SpriteKind.Enemy)) {
+        value.scale += 0.01
+        if (value.scale == 6) {
+            game.gameOver(false)
+        }
+        pause(10)
+    }
+})
+game.onUpdate(function () {
     if (!(UsingMonitor)) {
         scene.cameraFollowSprite(Camerafornonmonitor)
         controller.moveSprite(PistolAim, 125, 0)
@@ -2719,13 +2728,20 @@ game.onUpdate(function () {
     }
 })
 game.onUpdate(function () {
-    for (let value of sprites.allOfKind(SpriteKind.Enemy)) {
-        value.scale += 0.01
-        if (value.scale == 6) {
-            game.gameOver(false)
-        }
-        pause(10)
+    if (Timer == 0) {
+        game.setGameOverMessage(true, "Too late..")
+        game.gameOver(false)
+    } else {
+        timer.throttle("ticking timer", 1000, function () {
+            Timer += -1
+        })
     }
+    RepairTime.attachToSprite(TileMapGuy)
+    ReloadTime.setPosition(PistolAim.x, PistolAim.y - 45)
+    AmmoText.setText("Ammo " + ":" + convertToText(Ammo))
+    MagsText.setText("Mags " + ":" + convertToText(Magazines))
+    EnergyText.setText(convertToText(EnergyVar))
+    TimerText.setText("" + convertToText(Timer) + "s")
 })
 game.onUpdate(function () {
     if (!(UsingMonitor)) {
@@ -2745,27 +2761,33 @@ game.onUpdate(function () {
     }
 })
 game.onUpdate(function () {
-    if (Timer == 0) {
-        game.setGameOverMessage(true, "Too late..")
-        game.gameOver(false)
-    } else {
-        timer.throttle("ticking timer", 1000, function () {
-            Timer += -1
-        })
+    if (UsingMonitor) {
+        if (Repairing) {
+            controller.moveSprite(TileMapGuy, 0, 0)
+            if (RepairTime.value == 100) {
+                RepairTime.value = 0
+                tiles.setTileAt(TileMapGuy.tilemapLocation(), assets.tile`myTile0`)
+                Repairing = false
+                GeneratorsOn += 1
+                EnergyVar += -5
+            } else {
+                RepairTime.value += 1
+            }
+            if (Reloading) {
+                ReloadTime.setFlag(SpriteFlag.Invisible, false)
+            } else {
+                ReloadTime.setFlag(SpriteFlag.Invisible, true)
+            }
+        }
     }
-    ReloadTime.setPosition(PistolAim.x, PistolAim.y - 45)
-    AmmoText.setText("Ammo " + ":" + convertToText(Ammo))
-    MagsText.setText("Mags " + ":" + convertToText(Magazines))
-    EnergyText.setText(convertToText(EnergyVar))
-    TimerText.setText("" + convertToText(Timer) + "s")
 })
 game.onUpdate(function () {
     if (UsingMonitor) {
         EnergyText.setFlag(SpriteFlag.Invisible, false)
         MonitorHUD.setFlag(SpriteFlag.Invisible, false)
         TimerText.setFlag(SpriteFlag.Invisible, true)
-        RepairTime.setFlag(SpriteFlag.Invisible, true)
         Background.setFlag(SpriteFlag.Invisible, true)
+        RepairTime.setFlag(SpriteFlag.Invisible, false)
         ReloadTime.setFlag(SpriteFlag.Invisible, true)
         PistolHUD.setFlag(SpriteFlag.Invisible, true)
         PistolAim.setFlag(SpriteFlag.Invisible, true)
@@ -2778,6 +2800,7 @@ game.onUpdate(function () {
     } else {
         EnergyText.setFlag(SpriteFlag.Invisible, true)
         MonitorHUD.setFlag(SpriteFlag.Invisible, true)
+        RepairTime.setFlag(SpriteFlag.Invisible, true)
         TimerText.setFlag(SpriteFlag.Invisible, false)
         Background.setFlag(SpriteFlag.Invisible, false)
         PistolHUD.setFlag(SpriteFlag.Invisible, false)
@@ -2787,6 +2810,15 @@ game.onUpdate(function () {
         AmmoText.setFlag(SpriteFlag.Invisible, false)
         for (let value of sprites.allOfKind(SpriteKind.Enemy)) {
             value.setFlag(SpriteFlag.Invisible, false)
+        }
+    }
+})
+game.onUpdate(function () {
+    if (UsingMonitor) {
+        if (TileMapGuy.tileKindAt(TileDirection.Center, assets.tile`myTile`)) {
+            RepairTime.setFlag(SpriteFlag.Invisible, false)
+        } else {
+            RepairTime.setFlag(SpriteFlag.Invisible, true)
         }
     }
 })
